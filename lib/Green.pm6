@@ -1,15 +1,32 @@
 module Green;
 
 my @sets;
-my ($i,$i2) = 0, 0;
+my ($p0, $i,$i2) = 1, 0, 0;
 
-multi sub set(Callable $sub) is export { set("Suite $i", $sub); }
 
-multi sub set(Str $description, Callable $sub) is export {
+my @prefixed;
+
+multi sub prefix:<:)>(Bool $bool) is export(:DEFAULT, :harness) {
+  @prefixed.push({
+    test => "Prefixed {$p0++}",
+    sub  => sub { die 'not ok' unless $bool; },
+  });
+};
+
+multi sub prefix:<:)>(Callable $sub) is export(:DEFAULT, :harness) { 
+  @prefixed.push({ 
+    test => "Prefixed {$p0++}", 
+    sub  => $sub,
+  });
+};
+
+multi sub set(Callable $sub) is export(:DEFAULT, :harness) { set("Suite $i", $sub); }
+
+multi sub set(Str $description, Callable $sub) is export(:DEFAULT, :harness) {
   my $test = 0;
   my @tests;
-  my multi sub test(Callable $sub) is export { test("Test $i2", $sub); };
-  my multi sub test(Str $description, Callable $sub) is export {
+  my multi sub test(Callable $sub) is export(:DEFAULT, :harness) { test("Test $i2", $sub); };
+  my multi sub test(Str $description, Callable $sub) is export(:DEFAULT, :harness) {
     $i2++;
     @tests.push({
       test => $description,
@@ -24,7 +41,7 @@ multi sub set(Str $description, Callable $sub) is export {
   });
 }
 
-sub ok (Bool $eval) is export {
+sub ok (Bool $eval) is export(:harness) {
   die 'not ok' unless $eval;
 }
 
@@ -38,9 +55,19 @@ END {
   my $passing       = 0;
   my $t0            = now;
   my $t1;
+
+  my $MS            = $*MS // 3600000;
+
+  if @prefixed.elems {
+    @sets.push({
+      description => "Prefixed Tests",
+      tests       => @prefixed,      
+    });
+  }
+
   for @sets -> $set {
     my $i = @promises.elems;
-    @promises.push: start {
+    @promises.push(start {
       my Str  $output  = '';
       my Str  $errors  = '';
       my Bool $overall = True;
@@ -49,13 +76,14 @@ END {
         my Bool $success;
         try { 
           $tests++;
-          if $test<sub>.signature.count == 1 {
+          if ($test<sub>.signature.count == 1 && $test<sub>.signature.params[0].name ne '$_') ||
+             ($test<sub>.signature.count > 1) {
             my $promise = Promise.new;
-            my $timeout = Promise.in(2);
+            my $timeout = Promise.in($MS/1000);
             my $done    = sub { $promise.keep(True); };
             $test<sub>($done);
             await Promise.anyof($promise, $timeout);
-            die "Timeout (test in excess of 2000 ms)" if $timeout ~~ Kept; 
+            die "Timeout (test in excess of $MS ms)" if $timeout:Kept; 
           } else {
             $test<sub>();
           }
@@ -64,7 +92,7 @@ END {
             default {
               $overall = False;
               $success = False; 
-              $errors ~= "{' ' x $space*2}#$err - " ~ $_.payload ~ "\n";
+              $errors ~= "{' ' x $space*2}#$err - " ~ $_.Str ~ "\n";
               $errors ~= $_.backtrace.Str.lines.map({ .subst(/ ^ \s+ /, ' ' x $space*3) }).join("\n") ~ "\n"; 
             }
           }
@@ -73,12 +101,12 @@ END {
         $output ~= "{' ' x $space*2}{$success ?? $pass !! $fail ~ " #{$err++} - " } $test<test>\n"; 
       }
       @results[$i] ~= "{' ' x $space}{$overall ?? $pass !! $fail} $set<description>\n" ~ $output ~ "\n$errors\n";
-    };
+    });
   }
-  await Promise.allof(@promises);
+  await Promise.allof(@promises) if @promises.elems;
   $t1 = now;
   for @results -> $result {
     print $result;
   }
-  say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)";
+  say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)" if @results.elems;
 };
