@@ -3,7 +3,6 @@ module Green;
 my @sets;
 my ($p0, $i,$i2) = 1, 0, 0;
 
-
 my @prefixed;
 
 multi sub prefix:<\>\>>(Bool $bool) is export(:DEFAULT, :harness) {
@@ -42,40 +41,49 @@ multi sub set(Str $description, Callable $sub) is export(:DEFAULT, :harness) {
 }
 
 sub ok (Bool $eval) is export(:harness) {
+  if $?CALLER::PACKAGE ~~ GLOBAL {
+    >> $eval;
+    return;
+  }
   die 'not ok' unless $eval;
 }
 
-END {
-  my @promises;
-  my %results;
-  my ($err, $index) = 1, 1;
-  my ($pass,$fail)  = '[P]', '[F]';
-  my $space         = 3;
-  my $tests         = 0;
-  my $passing       = 0;
-  my $t0            = now;
-  my $supply        = Supply.new;
-  my $t1;
 
-  my $MS            = %*ENV<PERL6_GREEN_TIMEOUT> // 3600000;
+my ($pass,$fail)  = '[P]', '[F]';
+my $space         = 3;
+my $tests         = 0;
+my $passing       = 0;
+my $t0            = now;
+my $supply        = Supply.new;
+my $t1;
 
-  try {
-    require Term::ANSIColor;
-    $pass = '[' ~ Term::ANSIColor.color('green') ~ ' OK ' ~ Term::ANSIColor.color('reset') ~ ']';
-    $fail = '[' ~ Term::ANSIColor.color('red') ~ 'FAIL' ~ Term::ANSIColor.color('reset') ~ ']';
-  };
+my $MS            = %*ENV<PERL6_GREEN_TIMEOUT> // 3600000;
 
-  if @prefixed.elems {
-    @sets.push({
-      description => "Prefixed Tests",
-      tests       => @prefixed,      
-    });
-  }
+my %results;
 
-  $supply.tap(-> $i {
-    try print %results{$i};
+$supply.tap(-> $i {
+  try print %results{$i};
+});
+
+if @prefixed.elems {
+  @sets.push({
+    description => "Prefixed Tests",
+    tests       => @prefixed,      
   });
-  for @sets -> $set {
+}
+
+start {
+  loop {
+    my $set = $CHANNEL.receive;
+    my @promises;
+    my ($err, $index) = 1, 1;
+    try {
+      require Term::ANSIColor;
+      $pass = '[' ~ Term::ANSIColor.color('green') ~ ' OK ' ~ Term::ANSIColor.color('reset') ~ ']';
+      $fail = '[' ~ Term::ANSIColor.color('red') ~ 'FAIL' ~ Term::ANSIColor.color('reset') ~ ']';
+    };
+
+
     my $i = @promises.elems;
     @promises.push(start {
       my Str  $output  = '';
@@ -86,16 +94,15 @@ END {
         my Bool $success;
         try { 
           $tests++;
-          my $timeout = Promise.in($MS / 1000);
           my $promise = Promise.new;
           my $done    = sub { $promise.keep(True); };
           my $donf    =  ($test<sub>.signature.count == 1 && $test<sub>.signature.params[0].name ne '$_') || ($test<sub>.signature.count > 1);
-          await Promise.anyof($promise, $timeout, start {
+          await Promise.anyof($promise, start {
             $test<sub>($done) if  $donf;
             await $promise    if  $donf;
             $test<sub>()      if !$donf;
           });
-          die "Timeout (test in excess of {$MS}ms)" if $timeout.status ~~ Kept; 
+          #die "Timeout (test in excess of {$MS}ms)" if $timeout.status ~~ Kept; 
           $passing++;
           $success = True;
           CATCH { 
@@ -111,11 +118,13 @@ END {
         };
         try $output ~= "{' ' x $space*2}{$success ?? $pass !! $fail ~ " #{$err++} - " } $test<test>\n"; 
       }
-      %results{$i} = "{' ' x $space}{$overall ?? $pass !! $fail} $set<description>\n" ~ $output ~ "\n$errors";
+      %results{$i} = "{' ' x $space}{$overall ?? $pass !! $fail} $set<description>\n" ~ $output ~ "\n{$errors}{$errors ne '' ?? "\n" !! ''}";
       $supply.emit($i);
     });
   }
-  await Promise.allof(@promises) if @promises.elems;
-  $t1 = now;
-  say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)" if %results.keys.elems;
+};
+
+END {
+    $t1 = now;
+    say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)" if %results.keys.elems;
 };
