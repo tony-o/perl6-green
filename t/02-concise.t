@@ -6,8 +6,6 @@ use Test;
 
 my $i = 0;
 
-:) ok 1 == 1;
-
 :) {
   plan 3;
   ok 1 == ++$i;

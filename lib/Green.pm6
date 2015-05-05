@@ -56,7 +56,9 @@ END {
   my $t0            = now;
   my $t1;
 
-  my $MS            = $*MS // 3600000;
+  my $MS            = %*ENV<PERL6_GREEN_TIMEOUT> // 3600000;
+
+  "timeout: $MS".say;
 
   if @prefixed.elems {
     @sets.push({
@@ -76,17 +78,17 @@ END {
         my Bool $success;
         try { 
           $tests++;
-          if ($test<sub>.signature.count == 1 && $test<sub>.signature.params[0].name ne '$_') ||
-             ($test<sub>.signature.count > 1) {
-            my $promise = Promise.new;
-            my $timeout = Promise.in($MS/1000);
-            my $done    = sub { $promise.keep(True); };
-            $test<sub>($done);
-            await Promise.anyof($promise, $timeout);
-            die "Timeout (test in excess of $MS ms)" if $timeout:Kept; 
-          } else {
-            $test<sub>();
-          }
+          my $timeout = Promise.in($MS/1000);
+          my $promise = Promise.new;
+          my $donef   = ($test<sub>.signature.count == 1 && $test<sub>.signature.params[0].name ne '$_') ||
+                        ($test<sub>.signature.count > 1);
+          my $done    = sub { $promise.keep(True); };
+          $promise = start { 
+            $test<sub>($done) if $donef;
+            $test<sub>() unless $donef; 
+          };
+          await Promise.anyof($promise, $timeout);
+          die "Timeout (test in excess of {$MS}ms)" if $timeout.status ~~ Kept; 
           $success = True;
           CATCH { 
             default {
