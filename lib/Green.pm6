@@ -6,14 +6,14 @@ my ($p0, $i,$i2) = 1, 0, 0;
 
 my @prefixed;
 
-multi sub prefix:<:)>(Bool $bool) is export(:DEFAULT, :harness) {
+multi sub prefix:<\>\>>(Bool $bool) is export(:DEFAULT, :harness) {
   @prefixed.push({
     test => "Prefixed {$p0++}",
     sub  => sub { die 'not ok' unless $bool; },
   });
 };
 
-multi sub prefix:<:)>(Callable $sub) is export(:DEFAULT, :harness) { 
+multi sub prefix:<\>\>>(Callable $sub) is export(:DEFAULT, :harness) { 
   @prefixed.push({ 
     test => "Prefixed {$p0++}", 
     sub  => $sub,
@@ -58,6 +58,12 @@ END {
   my $t1;
 
   my $MS            = %*ENV<PERL6_GREEN_TIMEOUT> // 3600000;
+
+  try {
+    require Term::ANSIColor;
+    $pass = '[' ~ Term::ANSIColor.color('green') ~ ' OK ' ~ Term::ANSIColor.color('reset') ~ ']';
+    $fail = '[' ~ Term::ANSIColor.color('red') ~ 'FAIL' ~ Term::ANSIColor.color('reset') ~ ']';
+  };
 
   if @prefixed.elems {
     @sets.push({
