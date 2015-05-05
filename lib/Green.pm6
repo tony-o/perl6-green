@@ -47,18 +47,17 @@ sub ok (Bool $eval) is export(:harness) {
 
 END {
   my @promises;
-  my @results;
+  my %results;
   my ($err, $index) = 1, 1;
   my ($pass,$fail)  = '[P]', '[F]';
   my $space         = 3;
   my $tests         = 0;
   my $passing       = 0;
   my $t0            = now;
+  my $supply        = Supply.new;
   my $t1;
 
   my $MS            = %*ENV<PERL6_GREEN_TIMEOUT> // 3600000;
-
-  "timeout: $MS".say;
 
   if @prefixed.elems {
     @sets.push({
@@ -67,6 +66,9 @@ END {
     });
   }
 
+  $supply.tap(-> $i {
+    try print %results{$i};
+  });
   for @sets -> $set {
     my $i = @promises.elems;
     @promises.push(start {
@@ -78,37 +80,38 @@ END {
         my Bool $success;
         try { 
           $tests++;
-          my $timeout = Promise.in($MS/1000);
-          my $promise = Promise.new;
-          my $donef   = ($test<sub>.signature.count == 1 && $test<sub>.signature.params[0].name ne '$_') ||
-                        ($test<sub>.signature.count > 1);
-          my $done    = sub { $promise.keep(True); };
-          $promise = start { 
-            $test<sub>($done) if $donef;
-            $test<sub>() unless $donef; 
+          if ($test<sub>.signature.count == 1 && $test<sub>.signature.params[0].name ne '$_') || ($test<sub>.signature.count > 1) {
+            my $promise = Promise.new;
+            my $done    = sub { $promise.keep(True); };
+            my $timeout = Promise.in($MS / 1000);
+            $test<sub>($done);
+            await Promise.anyof($promise, $timeout);
+            die "Timeout (test in excess of {$MS}ms)" unless $promise.status ~~ Kept; 
+          } else {
+            $test<sub>();
           };
-          await Promise.anyof($promise, $timeout);
-          die "Timeout (test in excess of {$MS}ms)" if $timeout.status ~~ Kept; 
+          $passing++;
           $success = True;
           CATCH { 
             default {
               $overall = False;
               $success = False; 
               $errors ~= "{' ' x $space*2}#$err - " ~ $_.Str ~ "\n";
-              $errors ~= $_.backtrace.Str.lines.map({ .subst(/ ^ \s+ /, ' ' x $space*3) }).join("\n") ~ "\n"; 
+              $errors ~= try $_.backtrace.Str.lines.map({ 
+                .subst(/ ^ \s+ /, ' ' x ($space*3)) 
+              }).join("\n") ~ "\n"; 
             }
           }
         };
-        $passing++ if $success;
-        $output ~= "{' ' x $space*2}{$success ?? $pass !! $fail ~ " #{$err++} - " } $test<test>\n"; 
+        try $output ~= "{' ' x $space*2}{$success ?? $pass !! $fail ~ " #{$err++} - " } $test<test>\n"; 
       }
-      @results[$i] ~= "{' ' x $space}{$overall ?? $pass !! $fail} $set<description>\n" ~ $output ~ "\n$errors\n";
+      %results{$i} = "{' ' x $space}{$overall ?? $pass !! $fail} $set<description>\n" ~ $output ~ "\n$errors";
+      $supply.emit($i);
     });
   }
   await Promise.allof(@promises) if @promises.elems;
   $t1 = now;
-  for @results -> $result {
-    print $result;
-  }
-  say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)" if @results.elems;
+  $passing.say;
+  $tests.say;
+  say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)" if %results.keys.elems;
 };
