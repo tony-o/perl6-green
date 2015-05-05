@@ -86,16 +86,16 @@ END {
         my Bool $success;
         try { 
           $tests++;
-          if ($test<sub>.signature.count == 1 && $test<sub>.signature.params[0].name ne '$_') || ($test<sub>.signature.count > 1) {
-            my $promise = Promise.new;
-            my $done    = sub { $promise.keep(True); };
-            my $timeout = Promise.in($MS / 1000);
-            $test<sub>($done);
-            await Promise.anyof($promise, $timeout);
-            die "Timeout (test in excess of {$MS}ms)" unless $promise.status ~~ Kept; 
-          } else {
-            $test<sub>();
-          };
+          my $timeout = Promise.in($MS / 1000);
+          my $promise = Promise.new;
+          my $done    = sub { $promise.keep(True); };
+          my $donf    =  ($test<sub>.signature.count == 1 && $test<sub>.signature.params[0].name ne '$_') || ($test<sub>.signature.count > 1);
+          await Promise.anyof($promise, $timeout, start {
+            $test<sub>($done) if  $donf;
+            await $promise    if  $donf;
+            $test<sub>()      if !$donf;
+          });
+          die "Timeout (test in excess of {$MS}ms)" if $timeout.status ~~ Kept; 
           $passing++;
           $success = True;
           CATCH { 
@@ -117,7 +117,5 @@ END {
   }
   await Promise.allof(@promises) if @promises.elems;
   $t1 = now;
-  $passing.say;
-  $tests.say;
   say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)" if %results.keys.elems;
 };
