@@ -8,7 +8,6 @@ plan 1;
 
 my ($t0, $t1);
 set(sub {
- 
   test(sub ($done) {
     $t0 = now;
     sleep 1;

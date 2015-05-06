@@ -2,6 +2,23 @@ module Green;
 
 my @sets;
 my ($p0, $i,$i2) = 1, 0, 0;
+my Channel $CHANNEL .=new;
+my ($pass,$fail)  = '[P]', '[F]';
+my $space         = 3;
+my $tests         = 0;
+my $passing       = 0;
+my $t0            = now;
+my $supply        = Supply.new;
+my $tsets         = 0;
+my $csets         = 0;
+my $completion    = Promise.new;
+my $t1;
+
+my $MS            = %*ENV<PERL6_GREEN_TIMEOUT> // 3600000;
+
+my @promises;
+my %results;
+
 
 my @prefixed;
 
@@ -34,7 +51,8 @@ multi sub set(Str $description, Callable $sub) is export(:DEFAULT, :harness) {
   };
   $i++;
   $sub();
-  @sets.push({
+  $tsets++;
+  $CHANNEL.send({
     description => $description,
     tests       => @tests,
   });
@@ -49,33 +67,14 @@ sub ok (Bool $eval) is export(:harness) {
 }
 
 
-my ($pass,$fail)  = '[P]', '[F]';
-my $space         = 3;
-my $tests         = 0;
-my $passing       = 0;
-my $t0            = now;
-my $supply        = Supply.new;
-my $t1;
-
-my $MS            = %*ENV<PERL6_GREEN_TIMEOUT> // 3600000;
-
-my %results;
-
 $supply.tap(-> $i {
   try print %results{$i};
+  $completion.keep(True) if $tsets == ++$csets;
 });
-
-if @prefixed.elems {
-  @sets.push({
-    description => "Prefixed Tests",
-    tests       => @prefixed,      
-  });
-}
 
 start {
   loop {
     my $set = $CHANNEL.receive;
-    my @promises;
     my ($err, $index) = 1, 1;
     try {
       require Term::ANSIColor;
@@ -125,6 +124,15 @@ start {
 };
 
 END {
-    $t1 = now;
-    say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)" if %results.keys.elems;
+  if @prefixed.elems {
+    $tsets++;
+    $CHANNEL.send({
+      description => "Prefixed Tests",
+      tests       => @prefixed,      
+    });
+  }
+
+  await $completion if $tsets != 0;
+  $t1 = now;
+  say "{' ' x $space}{$passing == $tests ?? $pass !! $fail} $passing of $tests passing ({ sprintf('%.3f', ($t1-$t0)*1000); }ms)" if %results.keys.elems;
 };
