@@ -1,12 +1,13 @@
 #!/usr/bin/env perl6
 
-use Green;
+use Green :shorthand;
 use Test;
 
 
 my $i = 0;
 
 >> {
+  'ere'.say;
   plan 3;
   ok 1 == ++$i;
 };
@@ -19,3 +20,6 @@ my $i = 0;
   ok 3 == ++$i;
 }
 
+{
+  $Green::GREEN.stats.perl.say;;
+}

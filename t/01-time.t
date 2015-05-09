@@ -6,18 +6,25 @@ use Green;
 
 plan 1;
 
+my Green $g .=new;
+
+$g.eval('
 my ($t0, $t1);
-set(sub {
-  test(sub ($done) {
+
+set(\'s1\', sub {
+  test(\'t1\', -> $done {
     $t0 = now;
     sleep 1;
     $done();
   });
-  test(sub ($done) {
+  test(\'t2\', -> $done {
     sleep 1;
     $t1 = now;
-    ok 2500 > ($t1-$t0)*1000 > 1500, 'test time is ok';
     $done();
   });
 });
+');
 
+END {
+  await Promise.allof($g.promises);
+}
