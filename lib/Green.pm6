@@ -1,7 +1,5 @@
 unit module Green;
 
-try use Term::ANSIColor;
-
 my @sets;
 my ($p0, $i,$i2) = 1, 0, 0;
 my Channel $CHANNEL .=new;
@@ -81,6 +79,7 @@ start {
     my ($err, $index) = 1, 1;
     try {
       require Term::ANSIColor;
+      my \color = GLOBAL::Term::ANSIColor::EXPORT::DEFAULT::<&color>;
       $pass = color('green') ~ '✓' ~ color('reset');
       $fail = color('red') ~ '✗' ~ color('reset');
     };
