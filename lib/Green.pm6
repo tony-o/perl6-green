@@ -1,5 +1,7 @@
 unit module Green;
 
+CATCH { default { 'caught'.say; } }
+
 my @sets;
 my ($p0, $i,$i2) = 1, 0, 0;
 my Channel $CHANNEL .=new;
