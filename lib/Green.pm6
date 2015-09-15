@@ -1,7 +1,5 @@
 unit module Green;
 
-try use Term::ANSIColor;
-
 my @sets;
 my ($p0, $i,$i2) = 1, 0, 0;
 my Channel $CHANNEL .=new;
@@ -24,18 +22,18 @@ my @prefixed;
 
 multi sub prefix:<\>\>>(| (Bool $bool, Str $descr? = "Prefixed {$p0}")) is export(:DEFAULT, :harness) is hidden-from-backtrace {
   $p0++;
-  @prefixed.push({
+  @prefixed.push($%(
     test => "$descr",
     sub  => sub :: is hidden-from-backtrace { die 'not ok' unless $bool; },
-  });
+  ));
 };
 
 multi sub prefix:<\>\>>(Callable $sub, Str $descr? = "Prefixed {$p0}") is export(:DEFAULT, :harness) is hidden-from-backtrace { 
   $p0++;
-  @prefixed.push({ 
+  @prefixed.push($%(
     test => $descr, 
     sub  => $sub,
-  });
+  ));
 };
 
 multi sub set(Callable $sub) is export(:DEFAULT, :harness) is hidden-from-backtrace { set("Suite $i", $sub); }
@@ -46,10 +44,10 @@ multi sub set(Str $description, Callable $sub) is export(:DEFAULT, :harness) is 
   my multi sub test(Callable $sub) is export(:DEFAULT, :harness) is hidden-from-backtrace { test("Test $i2", $sub); };
   my multi sub test(Str $description, Callable $sub) is export(:DEFAULT, :harness) is hidden-from-backtrace {
     $i2++;
-    @tests.push({
+    @tests.push($%(
       test => $description,
       sub  => $sub,
-    });
+    ));
   };
   $i++;
   $sub();
@@ -81,8 +79,9 @@ start {
     my ($err, $index) = 1, 1;
     try {
       require Term::ANSIColor;
-      $pass = color('green') ~ '✓' ~ color('reset');
-      $fail = color('red') ~ '✗' ~ color('reset');
+      my $color = &Term::ANSIColor::<color> // sub ($ignore) { };
+      $pass = $color('green') ~ '✓' ~ $color('reset');
+      $fail = $color('red') ~ '✗' ~ $color('reset');
     };
 
 
@@ -92,6 +91,7 @@ start {
       my Str  $errors  = '';
       my Bool $overall = True;
       my $ti = 1;
+      @($set<tests>.list).map({.perl}).join("\n").say;
       for @($set<tests>) -> $test {
         my Bool $success;
         try { 
@@ -119,7 +119,7 @@ start {
             }
           }
         };
-        try $output ~= "{' ' x $space*2}{$success ?? $pass !! $fail ~ " #{$err++} -" } {$test<test>.Str.trim}\n"; 
+        try $output ~= "{' ' x $space*2}{$success ?? $pass !! $fail ~ " #{$err++} -" } {($test<test> // '').Str.trim}\n"; 
       }
       %results{$i} = "{' ' x $space}{$overall ?? $pass !! $fail} $set<description>\n" ~ $output ~ "\n{$errors}{$errors ne '' ?? "\n" !! ''}";
       $supply.emit($i);
