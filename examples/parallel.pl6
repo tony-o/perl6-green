@@ -29,4 +29,3 @@ set("time me 4", sub {
   });
 });
 
-die 'dead';

@@ -24,12 +24,12 @@ multi sub MAIN(Str $testdir?) {
     $proc.stdout.tap(-> $v { $stdout ~= $v; });
     $proc.stderr.tap(-> $v { $stderr ~= $v; });
     my $s = $proc.start;
-    @testouts.push({ 
+    @testouts.push($%( 
       prom => $s,
       proc => $proc,
       out  => sub { $stdout },
       err  => sub { $stderr },
-    });
+    ));
   }
 
   my Bool $stillgoing = True;
