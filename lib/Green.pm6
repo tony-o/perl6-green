@@ -79,15 +79,9 @@ start {
     my ($err, $index) = 1, 1;
     try {
       require Term::ANSIColor;
-<<<<<<< HEAD
-      my $color = &Term::ANSIColor::<color> // sub ($ignore) { };
-      $pass = $color('green') ~ '✓' ~ $color('reset');
-      $fail = $color('red') ~ '✗' ~ $color('reset');
-=======
       my $color = GLOBAL::Term::ANSIColor::EXPORT::DEFAULT::<&color>;
       $pass = $color.('green') ~ '✓' ~ $color.('reset');
       $fail = $color.('red') ~ '✗' ~ $color.('reset');
->>>>>>> 597207712df94836de786158660073c8f95d3353
     };
 
 
