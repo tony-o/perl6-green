@@ -91,7 +91,6 @@ start {
       my Str  $errors  = '';
       my Bool $overall = True;
       my $ti = 1;
-      @($set<tests>.list).map({.perl}).join("\n").say;
       for @($set<tests>) -> $test {
         my Bool $success;
         try { 
