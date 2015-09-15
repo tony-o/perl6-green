@@ -79,7 +79,10 @@ start {
     my ($err, $index) = 1, 1;
     try {
       require Term::ANSIColor;
+      'here1'.say;
+      CATCH { default { .say; } }
       my $color = GLOBAL::Term::ANSIColor::EXPORT::DEFAULT::<&color>;
+      'here1'.say;
       $pass = $color.('green') ~ '✓' ~ $color.('reset');
       $fail = $color.('red') ~ '✗' ~ $color.('reset');
     };
@@ -103,7 +106,7 @@ start {
           await Promise.anyof($promise, start {
             $test<sub>($done)           if  $donf;
             await $promise              if  $donf;
-            $promise.keep($test<sub>()) unless $donf;
+            $promise.keep($test<sub>() || True) unless $donf;
           });
           $success = $promise.result;
           $passing++ if $success;
