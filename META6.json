@@ -3,7 +3,7 @@
   "name"        : "Green",
   "version"     : "0.1.3",
   "description" : "Parallel testing utility, it's really great",
-  "auth"        : "github:tony-o",
+  "auth"        : "zef:tony-o",
   "authors"     : [ "Tony O" ],
   "depends"     : ["Terminal::ANSIColor"],
   "provides"    : {
